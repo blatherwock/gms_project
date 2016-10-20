@@ -107,3 +107,11 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+
+#
+# Project-specific files
+#
+
+# Datasets
+data/
