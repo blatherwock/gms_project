@@ -4,11 +4,11 @@ README for bike_collector.py
 bike_collector.py is a script that can be used in a AWS lambda function to query the citibike station status and save the result in S3.
 
 To use
-1. Set the bucket and key variables to the bucket you have created for holding the raw data
-2. Create a lambda function that uses Python and copy the code from bike_collector.py to the code of the lambda function.
-3. Set a trigger for the function as a CloudWatch Event - Schedule for the rate that you desire.
-4. Test the function and confirm the data is being saved in your S3 bucket
-5. Enable the trigger to start the function running
+ 1. Set the bucket and key variables to the bucket you have created for holding the raw data
+ 2. Create a lambda function that uses Python and copy the code from bike_collector.py to the code of the lambda function.
+ 3. Set a trigger for the function as a CloudWatch Event - Schedule for the rate that you desire.
+ 4. Test the function and confirm the data is being saved in your S3 bucket
+ 5. Enable the trigger to start the function running
 
 
 Notes
