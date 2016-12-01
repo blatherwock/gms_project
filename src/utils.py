@@ -7,13 +7,15 @@ import re
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
+import glob
+import pandas as pd
+
+data_dir = os.path.join(os.path.split(__file__)[0], "..", "data")
+dataset_dir = os.path.join(data_dir, "trip_histories")
 
 
-def download_dataset(force_download=False):
+def download_trips_dataset(force_download=False):
     """Downloads Citi Bike Trip Histories dataset."""
-    data_dir = os.path.join(os.path.split(__file__)[0], "..", "data")
-    dataset_dir = os.path.join(data_dir, "trip_histories")
-
     if not os.path.isdir(data_dir):
             os.mkdir(data_dir)
 
@@ -43,3 +45,20 @@ def download_dataset(force_download=False):
                         zf.extract(csv_file, dataset_dir)
                         os.rename(csv_file_path, "%s.csv" % base_file_path)
                 os.remove(zip_file_path)
+
+
+def load_trips_dataframe():
+    """Loads Citi Bike Trips Histories dataset into Pandas' dataframe"""
+    trip_histories_pkl = os.path.join(data_dir, "trips_history.pkl")
+    if os.path.isfile(trip_histories_pkl):
+        print("trip_histories.pkl already exists. Skipping load.")
+    else:
+        dataframes = []
+        all_files = glob.glob(dataset_dir + "/*.csv")
+        for file in all_files:
+            print("Loading {}...".format(file))
+            dataframes.append(pd.read_csv(file, usecols=["starttime", "stoptime", "start station id", "end station id", "bikeid"], parse_dates=["starttime"]))
+        print("Concatenating all loaded files...")
+        pd.concat(dataframes).to_pickle(trip_histories_pkl)
+    print("Pickling result...")
+    return pd.read_pickle(trip_histories_pkl)
