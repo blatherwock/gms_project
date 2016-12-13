@@ -10,4 +10,5 @@ pyflakes==1.2.3
 pyparsing==2.1.10
 python-dateutil==2.6.0
 pytz==2016.7
+scipy==0.18.1
 six==1.10.0
