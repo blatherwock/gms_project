@@ -4,6 +4,12 @@ model that predicts New York Citi Bikes future locations.
 """
 
 import utils
+import os
+import pdb
+import numpy as np
+import matplotlib.pyplot as plt
+
+out_folder = os.path.join(os.path.split(__file__)[0], "..", "out")
 
 def process_trips(trips_df):
     print(trips_df.info())
@@ -18,6 +24,17 @@ def process_trips(trips_df):
     print("min end station id: {}".format(trips_df['end station id'].min()))
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
+def plot_select_weeks(start_time_matrix, time_idx):
+    print("Plotting total trips")
+
+    total_start_trips = np.sum(start_time_matrix, axis=0)
+    plt.plot(total_start_trips.A.flatten())
+    plt.title("Total trips in 30 minute intervals from 2013 - 2015")
+    plt.savefig("{}/total_trips.png".format(out_folder), format="png")
+    plt.clf()
+
+
+
 def main():
     # Ensure all data has been downloaded and processed
     #utils.download_trips_dataset()
@@ -27,6 +44,8 @@ def main():
 
     start_time_matrix, station_idx, time_idx = utils.load_start_time_matrix()
     stop_time_matrix, _, _ = utils.load_stop_time_matrix()
+
+    plot_select_weeks(start_time_matrix, time_idx)
 
 
 
