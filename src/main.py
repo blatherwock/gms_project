@@ -24,7 +24,7 @@ def process_trips(trips_df):
     print("min end station id: {}".format(trips_df['end station id'].min()))
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
-def plot_select_weeks(start_time_matrix, time_idx):
+def plot_total_start_trips(start_time_matrix, time_idx):
     print("Plotting total trips")
 
     total_start_trips = np.sum(start_time_matrix, axis=0)
@@ -32,8 +32,6 @@ def plot_select_weeks(start_time_matrix, time_idx):
     plt.title("Total trips in 30 minute intervals from 2013 - 2015")
     plt.savefig("{}/total_trips.png".format(out_folder), format="png")
     plt.clf()
-
-
 
 def main():
     # Ensure all data has been downloaded and processed
@@ -45,7 +43,7 @@ def main():
     start_time_matrix, station_idx, time_idx = utils.load_start_time_matrix()
     stop_time_matrix, _, _ = utils.load_stop_time_matrix()
 
-    plot_select_weeks(start_time_matrix, time_idx)
+    plot_total_start_trips(start_time_matrix, time_idx)
 
 
 
