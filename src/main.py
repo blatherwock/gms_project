@@ -26,10 +26,12 @@ def process_trips(trips_df):
     print("min end station id: {}".format(trips_df['end station id'].min()))
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
+
 def plot_avg_week_for_stations(start_time_matrix,
                                station_idx,
                                time_at_idx,
                                station_ids):
+    print("Plotting average weeks for stations")
     # -5*48 to exclude last 5 days, to end on Sunday at 23:59
     mat = start_time_matrix[:,:-5*48].todense().A
     n_stations, total_buckets = mat.shape
@@ -42,11 +44,23 @@ def plot_avg_week_for_stations(start_time_matrix,
 
     x_axis = [time_at_idx(i) for i in range(0, 48*7)]
     for station_id in station_ids:
+        print("\r\tPlotting average week for station {}".format(station_id), end="")
         plt.plot(x_axis, avg[station_idx[station_id],:], alpha=0.7, label=station_id)
-
+        print("\r" + " "*80 + "\r", end="")
     plt.xticks(x_axis, [x.hour if x.hour in [0,6,12,18] else "" for x in x_axis], rotation='vertical')
     plt.legend()
     plt.savefig(os.path.join(out_folder, "avg_week_start_time.pdf"))
+    plt.clf()
+
+
+def plot_total_start_trips(start_time_matrix, time_idx):
+    print("Plotting total trips")
+
+    total_start_trips = np.sum(start_time_matrix, axis=0)
+    plt.plot(total_start_trips.A.flatten())
+    plt.title("Total trips in 30 minute intervals from 2013 - 2015")
+    plt.savefig(os.path.join(out_folder, "total_trips.pdf"))
+    plt.clf()
 
 
 def main():
@@ -61,6 +75,7 @@ def main():
     inverse_station = { v: k for k, v in station_idx.items() }
 
     plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360,239])
+    plot_total_start_trips(start_time_matrix, time_idx)
 
 
 if __name__ == '__main__':
