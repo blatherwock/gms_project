@@ -5,7 +5,6 @@ model that predicts New York Citi Bikes future locations.
 
 import utils
 
-
 def process_trips(trips_df):
     print(trips_df.info())
     print(trips_df.dtypes)
@@ -19,11 +18,16 @@ def process_trips(trips_df):
     print("min end station id: {}".format(trips_df['end station id'].min()))
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
-
 def main():
+    # Ensure all data has been downloaded and processed
     utils.download_trips_dataset()
-    trips_df = utils.load_trips_dataframe()
-    process_trips(trips_df)
+    for y in utils.YEARS:
+        utils.load_trips_dataframe(y)
+        #process_trips(trips_df)
+
+    utils.load_start_time_matrix()
+    utils.load_stop_time_matrix()
+
 
 if __name__ == '__main__':
     main()

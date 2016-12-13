@@ -1,0 +1,8 @@
+start time matrix:
+	58m to run
+	50.8 MB
+
+stop time matrix:
+	49m to run
+	50.8 MB
+	skipped 589 records (probably ones that carried over into Oct 2016)
