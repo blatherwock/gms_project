@@ -154,14 +154,11 @@ def load_start_time_matrix():
         np.savez(start_time_matrix_npz, **attributes)
 
     # Return newly built start time matrix
-    return { 'station_idx': station_idx, 'time_idx': time_idx, 'start_time_matrix': final_matrix }
+    return final_matrix, station_idx, time_idx
 
 def load_stop_time_matrix():
     # We'll use the same station mapping and shape as the start_time_matrix
-    start_time_dict = load_start_time_matrix()
-    start_time_matrix = start_time_dict['start_time_matrix']
-    time_idx = start_time_dict['time_idx']
-    station_idx = start_time_dict['station_idx']
+    start_time_matrix, station_idx, time_idx = load_start_time_matrix()
 
     stop_time_matrix_npz = os.path.join(data_dir, "stop_time_matrix.npz")
     final_matrix = csr_matrix((0,0), dtype=np.uint8)
@@ -209,4 +206,4 @@ def load_stop_time_matrix():
         np.savez(stop_time_matrix_npz, **attributes)
 
     # Return newly built stop time matrix
-    return { 'station_idx': station_idx, 'time_idx': time_idx, 'stop_time_matrix': final_matrix }
+    return final_matrix, station_idx, time_idx

@@ -20,13 +20,14 @@ def process_trips(trips_df):
 
 def main():
     # Ensure all data has been downloaded and processed
-    utils.download_trips_dataset()
-    for y in utils.YEARS:
-        utils.load_trips_dataframe(y)
-        #process_trips(trips_df)
+    #utils.download_trips_dataset()
+    #for y in utils.YEARS:
+    #   utils.load_trips_dataframe(y)
+    #   process_trips(trips_df)
 
-    utils.load_start_time_matrix()
-    utils.load_stop_time_matrix()
+    start_time_matrix, station_idx, time_idx = utils.load_start_time_matrix()
+    stop_time_matrix, _, _ = utils.load_stop_time_matrix()
+
 
 
 if __name__ == '__main__':
