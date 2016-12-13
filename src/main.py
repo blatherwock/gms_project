@@ -30,7 +30,8 @@ def process_trips(trips_df):
 def plot_avg_week_for_stations(start_time_matrix,
                                station_idx,
                                time_at_idx,
-                               station_ids):
+                               station_ids,
+                               file_name):
     print("Plotting average weeks for stations")
     # -5*48 to exclude last 5 days, to end on Sunday at 23:59
     mat = start_time_matrix[:,:-5*48].todense().A
@@ -49,7 +50,7 @@ def plot_avg_week_for_stations(start_time_matrix,
         print("\r" + " "*80 + "\r", end="")
     plt.xticks(x_axis, [x.hour if x.hour in [0,6,12,18] else "" for x in x_axis], rotation='vertical')
     plt.legend()
-    plt.savefig(os.path.join(out_folder, "avg_week_start_time.pdf"))
+    plt.savefig(os.path.join(out_folder, file_name))
     plt.clf()
 
 
@@ -72,9 +73,13 @@ def main():
 
     start_time_matrix, station_idx, time_idx, time_at_idx = utils.load_start_time_matrix()
     stop_time_matrix, _, _ = utils.load_stop_time_matrix()
+    start_time_matrix = start_time_matrix.astype(np.int16)
+    stop_time_matrix = stop_time_matrix.astype(np.int16)
     inverse_station = { v: k for k, v in station_idx.items() }
 
-    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360,239])
+    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], "avg_week_start_time.pdf")
+    plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], "avg_week_stop_time.pdf")
+    plot_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360], "avg_week_flow_time.pdf")
     plot_total_start_trips(start_time_matrix, time_idx)
 
 
