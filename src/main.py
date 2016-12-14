@@ -51,7 +51,7 @@ def plot_avg_week_for_stations(start_time_matrix,
     x_axis = [time_at_idx(i) for i in range(0, 48*7)]
     for station_id in station_ids:
         print("\r\tPlotting average week for station {}".format(station_id), end="")
-        plt.plot(x_axis, avg[station_idx[station_id],:], alpha=0.6, label=station_id)
+        plt.plot(x_axis, avg[station_idx[station_id],:], linestyle="solid", alpha=0.8, label=station_id)
         print("\r" + " "*80 + "\r", end="")
     xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
     xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
@@ -109,6 +109,38 @@ def plot_total_start_trips(start_time_matrix, time_idx):
     savefig("total_trips_30_min_bucket_over_day.pdf")
 
 
+def plot_normalized_avg_week_for_stations(start_time_matrix,
+                                          station_idx,
+                                          time_at_idx,
+                                          station_ids,
+                                          plot_title,
+                                          file_name):
+    print("Plotting normalized average weeks for stations")
+    # -5*48 to exclude last 5 days, to end on Sunday at 23:59
+    mat = start_time_matrix[:,:-5*48].todense().A
+    n_stations, total_buckets = mat.shape
+    mat = mat.reshape((n_stations, -1, 48*7))
+    avg = np.mean(mat, axis=1)
+    # Normalize the stations
+    maxes = np.max(np.abs(avg), axis=1)
+    maxes = np.repeat(maxes, avg.shape[1]).reshape(avg.shape)
+    avg = np.divide(avg, maxes)
+
+    plt.title(plot_title)
+    plt.ylabel('Number of trips')
+    plt.xlabel('Time bucket')
+
+    x_axis = [time_at_idx(i) for i in range(0, 48*7)]
+    for station_id in station_ids:
+        print("\r\tPlotting average week for station {}".format(station_id), end="")
+        plt.plot(x_axis, avg[station_idx[station_id],:], linestyle="solid", alpha=0.8, label=station_id)
+        print("\r" + " "*80 + "\r", end="")
+    xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
+    xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
+    plt.xticks(xticks, xticklabels, rotation=70)
+    plt.legend(loc="upper right")
+    savefig(file_name)
+
 def main():
     # Ensure all data has been downloaded and processed
     #utils.download_trips_dataset()
@@ -125,8 +157,11 @@ def main():
     plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], "Number of trips started at station over week", "avg_week_start_time.pdf")
     plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
     plot_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], "Net change in bikes at station over week","avg_week_flow_time.pdf")
-    #plot_total_start_trips(start_time_matrix, time_idx)
+    plot_total_start_trips(start_time_matrix, time_idx)
 
+    plot_normalized_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
+        "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf")
+    
 
 if __name__ == '__main__':
     main()
