@@ -76,21 +76,21 @@ def load_trips_dataframe(year=16):
     print("\rLoading Complete")
     return temp
 
+def time_idx(start_time):
+    start_time_obj = datetime.strptime(start_time, DATE_FORMAT) if isinstance(start_time, str) else start_time
+
+    if start_time_obj < DATA_START:
+        raise IndexError("start_time is earlier than data start")
+    difference = start_time_obj - DATA_START
+    # convert the difference (which is stored in days and seconds) into the number of 
+    # half hour intervals between the start date and the given start_time
+    half_hour_intervals = difference.days * (24 * 2) + difference.seconds / (30 * 60)
+    return math.floor(half_hour_intervals)
+def time_at_idx(idx):
+    delta = timedelta(seconds=idx * (30 * 60))
+    return DATA_START + delta
+
 def load_start_time_matrix():
-    def time_idx(start_time):
-        start_time_obj = datetime.strptime(start_time, DATE_FORMAT) if isinstance(start_time, str) else start_time
-
-        if start_time_obj < DATA_START:
-            raise IndexError("start_time is earlier than data start")
-        difference = start_time_obj - DATA_START
-        # convert the difference (which is stored in days and seconds) into the number of 
-        # half hour intervals between the start date and the given start_time
-        half_hour_intervals = difference.days * (24 * 2) + difference.seconds / (30 * 60)
-        return math.floor(half_hour_intervals)
-    def time_at_idx(idx):
-        delta = timedelta(seconds=idx * (30 * 60))
-        return DATA_START + delta
-
     start_time_matrix_npz = os.path.join(data_dir, "start_time_matrix.npz")
     station_idx = {}
     final_matrix = csr_matrix((0,0), dtype=np.uint8)
@@ -207,3 +207,9 @@ def load_stop_time_matrix():
 
     # Return newly built stop time matrix
     return final_matrix, station_idx, time_idx
+
+def month_indices():
+    # Return the month indices between July 2013 and September 2016
+    return [ time_idx("201{y}-{m:0>2}-01 00:00:00".format(y=y,m=m)) 
+             for y in range(3,7) for m in range(1,13) 
+             if (y > 3 or m > 6) and (y < 6 or m < 10)]
