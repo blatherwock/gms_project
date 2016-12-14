@@ -35,6 +35,7 @@ def plot_avg_week_for_stations(start_time_matrix,
                                station_idx,
                                time_at_idx,
                                station_ids,
+                               plot_title,
                                file_name):
     print("Plotting average weeks for stations")
     # -5*48 to exclude last 5 days, to end on Sunday at 23:59
@@ -43,19 +44,20 @@ def plot_avg_week_for_stations(start_time_matrix,
     mat = mat.reshape((n_stations, -1, 48*7))
     avg = np.mean(mat, axis=1)
 
-    plt.title("Start time")
-    plt.ylabel('Number of trips exiting station')
+    plt.title(plot_title)
+    plt.ylabel('Number of trips')
     plt.xlabel('Time bucket')
 
     x_axis = [time_at_idx(i) for i in range(0, 48*7)]
     for station_id in station_ids:
         print("\r\tPlotting average week for station {}".format(station_id), end="")
-        plt.plot(x_axis, avg[station_idx[station_id],:], alpha=0.7, label=station_id)
+        plt.plot(x_axis, avg[station_idx[station_id],:], alpha=0.6, label=station_id)
         print("\r" + " "*80 + "\r", end="")
-    plt.xticks(x_axis, [x.hour if x.hour in [0,6,12,18] else "" for x in x_axis], rotation='vertical')
-    plt.legend()
-    plt.savefig(os.path.join(out_folder, file_name))
-    plt.clf()
+    xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
+    xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
+    plt.xticks(xticks, xticklabels, rotation=70)
+    plt.legend(loc="upper right")
+    savefig(file_name)
 
 
 def plot_total_start_trips(start_time_matrix, time_idx):
@@ -120,10 +122,10 @@ def main():
     stop_time_matrix = stop_time_matrix.astype(np.int16)
     inverse_station = { v: k for k, v in station_idx.items() }
 
-    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], "avg_week_start_time.pdf")
-    plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], "avg_week_stop_time.pdf")
-    plot_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360], "avg_week_flow_time.pdf")
-    plot_total_start_trips(start_time_matrix, time_idx)
+    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], "Number of trips started at station over week", "avg_week_start_time.pdf")
+    plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
+    plot_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], "Net change in bikes at station over week","avg_week_flow_time.pdf")
+    #plot_total_start_trips(start_time_matrix, time_idx)
 
 
 if __name__ == '__main__':

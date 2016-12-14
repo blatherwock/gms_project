@@ -6,3 +6,15 @@ stop time matrix:
 	49m to run
 	50.8 MB
 	skipped 589 records (probably ones that carried over into Oct 2016)
+
+Some interesting stations:
+3180 - Brooklyn Bridge Park Pier 2
+360 - William St & Pine St
+195 - Liberty St & Brodway
+146 - Hudson St & Reade St
+432 - E 7 St & Avenue A
+161 - LaGuardia Pl & W 3st
+497 - E 17 St & Broadway
+3255 - 8 Ave & W 31 St
+477 - W 41 St & 8 Ave
+517 - Pershing Square South
