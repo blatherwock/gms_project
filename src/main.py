@@ -42,7 +42,7 @@ def process_trips(trips_df):
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
 
-def plot_avg_week_for_stations(avg,
+def plot_avg_week_for_stations(start_time_matrix,
                                station_idx,
                                time_at_idx,
                                station_ids=None,
@@ -163,54 +163,54 @@ def main():
     inverse_station = { v: k for k, v in station_idx.items() }
     flow_matrix = stop_time_matrix-start_time_matrix
 
-    # plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], 
-    #     "Number of trips started at station over week", "avg_week_start_time.pdf")
-    # plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], 
-    #     "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], 
-    #     "Net change in bikes at station over week","avg_week_flow_time.pdf")
+    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], 
+        "Number of trips started at station over week", "avg_week_start_time.pdf")
+    plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], 
+        "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], 
+        "Net change in bikes at station over week","avg_week_flow_time.pdf")
     
     
-    # plot_total_start_trips(start_time_matrix, time_idx)
-    # plot_predicted_total_start_trips(start_time_matrix)
+    plot_total_start_trips(start_time_matrix, time_idx)
+    plot_predicted_total_start_trips(start_time_matrix)
 
-    # # Some interesting stations: 3412, 3324, 3285, 3286, 3153, 360, 195, 2023, 3095, 432, 511, 438
+    # Some interesting stations: 3412, 3324, 3285, 3286, 3153, 360, 195, 2023, 3095, 432, 511, 438
 
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
-    #     "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf", True)
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
-    #     "Net change in bikes at station over week (normalized, rounded)","normalized_round_avg_week_flow_time.pdf", True, True)
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
-    #     "Net change in bikes at station over week (normalized)","normalized_all_avg_week_flow_time.pdf", True)
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
-    #     "Net change in bikes at station over week ","all_avg_week_flow_time.pdf")
-    # plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
-    #     "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
+        "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf", True)
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
+        "Net change in bikes at station over week (normalized, rounded)","normalized_round_avg_week_flow_time.pdf", True, True)
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
+        "Net change in bikes at station over week (normalized)","normalized_all_avg_week_flow_time.pdf", True)
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
+        "Net change in bikes at station over week ","all_avg_week_flow_time.pdf")
+    plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
+        "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
 
 
-    # Under development
-    avg = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
-    model = TSNE(n_components=2, random_state=0)
-    avg_matrix_2d = model.fit_transform(avg)
-    avg_matrix_2d = avg_matrix_2d[:10,:] / 40.0
-    X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
-    plt.title("t-SNE")
-    plt.scatter(X, Y)
-    for i, xy in enumerate(zip(X, Y)):
-        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
-    savefig("t-SNE.pdf")
+    # # Under development
+    # avg = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
+    # model = TSNE(n_components=2, random_state=0)
+    # avg_matrix_2d = model.fit_transform(avg)
+    # avg_matrix_2d = avg_matrix_2d[:10,:] / 40.0
+    # X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
+    # plt.title("t-SNE")
+    # plt.scatter(X, Y)
+    # for i, xy in enumerate(zip(X, Y)):
+    #     plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    # savefig("t-SNE.pdf")
+    # # pdb.set_trace()
+
+    # # clusters = gmm.gmm(avg_matrix_2d, K=4, D=2)
+    # clusters = [0] * 10
+    
+    # print(clusters)
     # pdb.set_trace()
-
-    # clusters = gmm.gmm(avg_matrix_2d, K=4, D=2)
-    clusters = [0] * 10
-    
-    print(clusters)
-    pdb.set_trace()
-    plt.title("t-SNE")
-    plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
-    for i, xy in enumerate(zip(X, Y)):
-        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
-    savefig("Clustered_t-SNE.pdf")
+    # plt.title("t-SNE")
+    # plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
+    # for i, xy in enumerate(zip(X, Y)):
+    #     plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    # savefig("Clustered_t-SNE.pdf")
     
 
 if __name__ == '__main__':
