@@ -130,16 +130,18 @@ def plot_predicted_total_start_trips(start_time_matrix):
     start_time_days = np.sum(temp_trips, axis=2)
     total_start_trips = np.sum(start_time_days, axis=0)
 
+    predict_using = 130
     buckets = total_start_trips.shape[0]
     # predict 10 weeks into the future
     prediction_buckets = buckets + 52
     predicted_x_plot = np.linspace(0, prediction_buckets, prediction_buckets*10)[:,None]
     X = np.array(list(range(buckets))).reshape((buckets, 1))
-    predicted_y = predict(X, total_start_trips / 100000, predicted_x_plot)
+    predicted_y = predict(X[:predict_using], (total_start_trips / 100000)[:predict_using], predicted_x_plot)
     predicted_y *= 100000
     plt.plot(predicted_x_plot, predicted_y, color='g', label='Prediction')
 
-    plt.plot(total_start_trips, color='r', label='Total Weekly Trips')
+    plt.plot(total_start_trips[:predict_using], color='r', label='Total Weekly Trips')
+    plt.plot(range(predict_using, buckets), total_start_trips[predict_using:], color='b')
     plt.title("Total trips in {} intervals from 2013 - 2015".format(interval_name))
     plt.ylabel("# of trips / {}".format(interval_name))
     # Take the original month tickmarks and divide them by interval to find the appropriate
