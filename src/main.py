@@ -3,16 +3,27 @@ This file contains the main logic for training and evaluating a graphical
 model that predicts New York Citi Bikes future locations.
 """
 
-import utils
-import matplotlib.pyplot as plt
-import numpy as np
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import pdb
 import os
 import math
 
+import numpy as np
+from sklearn.manifold import TSNE
+
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+import utils
+import gmm
+
 plt.style.use('ggplot')
 
 out_folder = os.path.join(os.path.split(__file__)[0], "..", "out")
+
 def savefig(file_name):
     plt.savefig(os.path.join(out_folder, file_name))
     plt.clf()
@@ -31,18 +42,16 @@ def process_trips(trips_df):
     print("max end station id: {}".format(trips_df['end station id'].max()))
 
 
-def plot_avg_week_for_stations(start_time_matrix,
+def plot_avg_week_for_stations(avg,
                                station_idx,
                                time_at_idx,
                                station_ids,
                                plot_title,
                                file_name):
     print("Plotting average weeks for stations")
-    # -5*48 to exclude last 5 days, to end on Sunday at 23:59
-    mat = start_time_matrix[:,:-5*48].todense().A
-    n_stations, total_buckets = mat.shape
-    mat = mat.reshape((n_stations, -1, 48*7))
-    avg = np.mean(mat, axis=1)
+
+    fig = plt.figure()
+    ax = plt.subplot(111)
 
     plt.title(plot_title)
     plt.ylabel('Number of trips')
@@ -51,12 +60,14 @@ def plot_avg_week_for_stations(start_time_matrix,
     x_axis = [time_at_idx(i) for i in range(0, 48*7)]
     for station_id in station_ids:
         print("\r\tPlotting average week for station {}".format(station_id), end="")
-        plt.plot(x_axis, avg[station_idx[station_id],:], linestyle="solid", alpha=0.8, label=station_id)
+        ax.plot(x_axis, avg[station_idx[station_id],:], linestyle="solid", alpha=0.8, label=station_id)
         print("\r" + " "*80 + "\r", end="")
     xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
     xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
     plt.xticks(xticks, xticklabels, rotation=70)
-    plt.legend(loc="upper right")
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+    plt.legend(loc="upper right", bbox_to_anchor=(1.25,1))
     savefig(file_name)
 
 
@@ -109,18 +120,13 @@ def plot_total_start_trips(start_time_matrix, time_idx):
     savefig("total_trips_30_min_bucket_over_day.pdf")
 
 
-def plot_normalized_avg_week_for_stations(start_time_matrix,
+def plot_normalized_avg_week_for_stations(avg,
                                           station_idx,
                                           time_at_idx,
                                           station_ids,
                                           plot_title,
                                           file_name):
     print("Plotting normalized average weeks for stations")
-    # -5*48 to exclude last 5 days, to end on Sunday at 23:59
-    mat = start_time_matrix[:,:-5*48].todense().A
-    n_stations, total_buckets = mat.shape
-    mat = mat.reshape((n_stations, -1, 48*7))
-    avg = np.mean(mat, axis=1)
     # Normalize the stations
     maxes = np.max(np.abs(avg), axis=1)
     maxes = np.repeat(maxes, avg.shape[1]).reshape(avg.shape)
@@ -141,6 +147,27 @@ def plot_normalized_avg_week_for_stations(start_time_matrix,
     plt.legend(loc="upper right")
     savefig(file_name)
 
+
+def plot_tsne(avg, inverse_station, clusters=None, plot_title="t-SNE", file_name="t-SNE.pdf"):
+    print("Plotting t-SNE...")
+    model = TSNE(n_components=2, random_state=0)
+    avg_matrix_2d = model.fit_transform(avg)
+    X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
+    plt.title(plot_title)
+    plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
+    for i, xy in enumerate(zip(X, Y)):
+        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    savefig(file_name)
+
+
+def get_weekly_mean(complete_matrix):
+    # -5*48 to exclude last 5 days, to end on Sunday at 23:59
+    mat = complete_matrix[:,:-5*48].todense().A
+    n_stations, total_buckets = mat.shape
+    mat = mat.reshape((n_stations, -1, 48*7))
+    return np.mean(mat, axis=1)
+
+
 def main():
     # Ensure all data has been downloaded and processed
     #utils.download_trips_dataset()
@@ -154,13 +181,73 @@ def main():
     stop_time_matrix = stop_time_matrix.astype(np.int16)
     inverse_station = { v: k for k, v in station_idx.items() }
 
-    plot_avg_week_for_stations(start_time_matrix, station_idx, time_at_idx, [360], "Number of trips started at station over week", "avg_week_start_time.pdf")
-    plot_avg_week_for_stations(stop_time_matrix, station_idx, time_at_idx, [360], "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
-    plot_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], "Net change in bikes at station over week","avg_week_flow_time.pdf")
-    plot_total_start_trips(start_time_matrix, time_idx)
+    flux_matrix = stop_time_matrix - start_time_matrix
 
-    plot_normalized_avg_week_for_stations(stop_time_matrix-start_time_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
-        "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf")
+    # plot_tsne(get_weekly_mean(flux_matrix), inverse_station)
+
+    # plot_avg_week_for_stations(get_weekly_mean(start_time_matrix), station_idx, time_at_idx, [360], "Number of trips started at station over week", "avg_week_start_time.pdf")
+    # plot_avg_week_for_stations(get_weekly_mean(stop_time_matrix), station_idx, time_at_idx, [360], "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
+    # Some interesting stations: 3412, 3324, 3285, 3286, 3153, 360, 195, 2023, 3095, 432, 511, 438
+    # plot_avg_week_for_stations(get_weekly_mean(flux_matrix), station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], "Net change in bikes at station over week","avg_week_flow_time.pdf")
+    # plot_total_start_trips(start_time_matrix, time_idx)
+
+    # plot_normalized_avg_week_for_stations(get_weekly_mean(flux_matrix), station_idx, time_at_idx, [360, 195, 497, 146, 161], 
+    #     "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf")
+
+    flux_matrix_weekly_mean = get_weekly_mean(flux_matrix)
+    model = TSNE(n_components=2, random_state=0)
+    avg_matrix_2d = model.fit_transform(flux_matrix_weekly_mean)
+    avg_matrix_2d = avg_matrix_2d[:10,:] / 40.0
+    X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
+    plt.title("t-SNE")
+    plt.scatter(X, Y)
+    for i, xy in enumerate(zip(X, Y)):
+        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    savefig("t-SNE.pdf")
+    # pdb.set_trace()
+
+    clusters = gmm.gmm(avg_matrix_2d, K=4, D=2)
+    # clusters = [0, 0, 4, 4, 4, 0, 0, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 4,
+    #    0, 0, 0, 4, 4, 4, 0, 0, 4, 4, 4, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0,
+    #    0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 4, 4, 0,
+    #    0, 0, 0, 4, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 4, 0,
+    #    0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 4, 4,
+    #    4, 4, 0, 4, 0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 4, 0, 2, 4, 0, 0, 0, 0, 4,
+    #    4, 0, 4, 4, 0, 4, 0, 0, 4, 0, 0, 0, 0, 4, 0, 4, 4, 4, 4, 0, 4, 0, 0,
+    #    0, 4, 0, 0, 4, 0, 4, 0, 0, 0, 4, 4, 0, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0,
+    #    4, 4, 0, 0, 4, 0, 4, 4, 4, 4, 0, 4, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 4,
+    #    0, 0, 0, 0, 0, 4, 0, 4, 0, 4, 0, 4, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0,
+    #    2, 4, 4, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 4, 4, 4, 4,
+    #    4, 4, 0, 0, 0, 4, 0, 4, 4, 4, 4, 4, 0, 4, 4, 0, 4, 4, 4, 4, 0, 4, 4,
+    #    0, 4, 4, 4, 4, 0, 4, 0, 4, 4, 0, 4, 0, 4, 4, 4, 0, 4, 0, 4, 4, 0, 0,
+    #    0, 0, 0, 4, 4, 4, 0, 4, 4, 4, 0, 4, 4, 4, 4, 4, 0, 4, 4, 0, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 0, 0, 4, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 0, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    #    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+    # clusters = [1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    # clusters = [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+    print(clusters)
+    pdb.set_trace()
+    plt.title("t-SNE")
+    plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
+    for i, xy in enumerate(zip(X, Y)):
+        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    savefig("Clustered_t-SNE.pdf")
+
+    # plot_tsne(flux_matrix_weekly_mean, inverse_station, clusters=clusters)
     
 
 if __name__ == '__main__':
