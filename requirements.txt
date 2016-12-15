@@ -1,10 +1,17 @@
+configparser==3.5.0
 cycler==0.10.0
+edward==1.1.6
+enum34==1.1.6
 flake8==3.0.4
+funcsigs==1.0.2
 matplotlib==1.5.3
 mccabe==0.5.2
+mock==2.0.0
 numpy==1.11.2
 pandas==0.19.1
+pbr==1.10.0
 pep8==1.7.0
+protobuf==3.0.0
 pycodestyle==2.0.0
 pyflakes==1.2.3
 pyparsing==2.1.10
@@ -14,3 +21,4 @@ scikit-learn==0.18.1
 scipy==0.18.1
 six==1.10.0
 sklearn==0.0
+tensorflow==0.11.0

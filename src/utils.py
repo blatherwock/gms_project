@@ -16,6 +16,9 @@ from datetime import timedelta
 from scipy.sparse import lil_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import hstack
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, RBF
+
 import pdb
 
 data_dir = os.path.join(os.path.split(__file__)[0], "..", "data")
@@ -25,6 +28,7 @@ YEARS = ["13", "14", "15", "16"]
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 DATA_START = datetime.strptime("2013-07-01 00:00:00", DATE_FORMAT)
 
+# I/O Utils
 def download_trips_dataset(force_download=False):
     """Downloads Citi Bike Trip Histories dataset."""
     if not os.path.isdir(data_dir):
@@ -209,8 +213,85 @@ def load_stop_time_matrix():
     return final_matrix, station_idx, time_idx
 
 
-def month_indices():
+# Helper Methods
+def month_indices(reduction_interval=1):
     # Return the month indices between July 2013 and September 2016
-    return [ time_idx("201{y}-{m:0>2}-01 00:00:00".format(y=y,m=m)) 
+    return np.array([ time_idx("201{y}-{m:0>2}-01 00:00:00".format(y=y,m=m)) 
              for y in range(3,7) for m in range(1,13) 
-             if (y > 3 or m > 6) and (y < 6 or m < 10)]
+             if (y > 3 or m > 6) and (y < 6 or m < 10)]) / reduction_interval
+
+def year_labels(reduction_interval=1):
+    # Take the original month tickmarks and divide them by interval to find the appropriate
+    # marks for the transformed data
+    tickmarks = month_indices(reduction_interval)
+    ticklabels = ['']*len(tickmarks)
+    ticklabels[0] = "2013"
+    ticklabels[6] = "2014"
+    ticklabels[18] = "2015"
+    ticklabels[30] = "2016"
+    return tickmarks, ticklabels
+
+# Data Transformation utils
+INTERVAL_DAILY = 48
+INTERVAL_WEEKLY = INTERVAL_DAILY * 7
+INTERVAL_YEARLY = INTERVAL_WEEKLY * 52
+def get_total_weekly_trips(time_matrix):
+    return get_agg_trips_by_interval(time_matrix, INTERVAL_WEEKLY)
+
+
+def get_agg_trips_by_interval(time_matrix, interval=INTERVAL_DAILY, aggregator_fn=np.sum):
+    # Aggregate along both the interval axis and the station axis
+    # Leaving array over the years
+    return _reshape_and_aggregate(time_matrix, interval, aggregator_fn)
+
+def get_station_agg_trips_over_week(time_matrix, aggregator_fn=np.sum):
+    # Aggregate along just the year axis
+    # Leaving matrix of stations x week
+    return _reshape_and_aggregate(time_matrix, INTERVAL_WEEKLY, aggregator_fn, axes=[1])
+
+def get_agg_trips_over_day(time_matrix, aggregator_fn=np.sum):
+    # This aggregates across the years into a station x 30 min throughout day matrix
+    # then agreggates to a 30 min throughout day array
+    return _reshape_and_aggregate(time_matrix, INTERVAL_DAILY, aggregator_fn, axes=[1,0])
+
+def _reshape_and_aggregate(time_matrix, interval, aggregator_fn, axes=[2,0]):
+    n_stations, total_buckets = time_matrix.shape
+    if time_matrix.shape[1] % interval != 0:
+        end_index = math.floor(total_buckets / interval) * interval
+        temp_trips = time_matrix[:, :end_index].todense().A
+    else:
+        temp_trips = time_matrix.todense().A
+    # Reshape the matrix so we have a 3rd dimension for the weekly data
+    temp_trips = temp_trips.reshape((n_stations, -1, interval))
+    # Aggregate along the first dim
+    temp_trips = aggregator_fn(temp_trips, axis=axes[0])
+    if len(axes) > 1:
+        # Aggregate along the second dim
+        temp_trips = aggregator_fn(temp_trips, axis=axes[1])
+    return temp_trips
+
+
+def fit_seasonal_trend(bucketed_totals):
+    def fit(X, Y):
+        gp_kernel = RBF(300) + ExpSineSquared(1.0, 52.0, periodicity_bounds=(1e-2, 1e10)) + WhiteKernel(1e-1)
+        model = GaussianProcessRegressor(kernel=gp_kernel)
+        model.fit(X, Y)
+        return model
+    def predict_fn(model, scaling_factor):
+        return lambda x: model.predict(x) * scaling_factor
+
+    n_buckets = bucketed_totals.shape[0]
+    scaling_factor = 100000
+    X = np.array(range(n_buckets)).reshape((n_buckets, 1))
+    Y = bucketed_totals.reshape((n_buckets, 1)) / scaling_factor
+    return predict_fn(fit(X, Y), scaling_factor)
+
+def normalize(time_matrix):
+    # Normalize the stations by for each station, take the min or max
+    # and divide the rest of the values by the absolute value of that
+    maxes = np.max(np.abs(time_matrix), axis=1)
+    maxes = np.repeat(maxes, time_matrix.shape[1]).reshape(time_matrix.shape)
+    return np.divide(time_matrix, maxes)
+
+def round(time_matrix, nearest_fraction=2):
+    return np.round(time_matrix * nearest_fraction) / nearest_fraction
