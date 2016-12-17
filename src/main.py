@@ -225,6 +225,7 @@ def main():
 
     np.random.seed(1)
 
+    station_info = utils.load_station_info()
     start_time_matrix, station_idx, time_idx, time_at_idx = utils.load_start_time_matrix()
     stop_time_matrix, _, _ = utils.load_stop_time_matrix()
     start_time_matrix = start_time_matrix.astype(np.int16)
@@ -256,6 +257,9 @@ def main():
 
     # Clustering stations
     plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3)
+
+    # Plot stations on map
+    plot_map(station_info, station_idx)
     
 
 if __name__ == '__main__':
