@@ -136,8 +136,13 @@ def plot_predicted_total_start_trips(start_time_matrix):
     plt.legend(loc='upper left')
     savefig('total_weekly_trips_prediction.pdf')
 
-def plot_map(station_info, station_idx):
+def plot_map(flow_matrix, station_info, station_idx):
     print("Plotting NYC map")
+
+    avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)[:len(station_idx),:]
+    cluster_assignments, _ = gmm.gmm(avg_weekly_flow, K=3)
+
+    colors = np.array(['r','g','b','c','y','k'])
     inverse_station = { v: k for k, v in station_idx.items() }
     locations = np.zeros((len(station_idx), 2))
     skipped_locs = []
@@ -158,7 +163,7 @@ def plot_map(station_info, station_idx):
     X = locations[:,0]
     Y = locations[:,1]
     plt.title("Bike Locations")
-    plt.scatter(X, Y, zorder=1)
+    plt.scatter(X, Y, c=colors[cluster_assignments].tolist(), zorder=1)
     plt.axis([-74.10, -73.85, 40.65, 40.85])
 
     # for i in range(0,locations.shape[0]):
@@ -259,7 +264,7 @@ def main():
     plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3)
 
     # Plot stations on map
-    plot_map(station_info, station_idx)
+    plot_map(flow_matrix, station_info, station_idx)
     
 
 if __name__ == '__main__':
