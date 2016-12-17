@@ -16,6 +16,7 @@ import matplotlib.cm as cm
 
 import utils
 import gmm
+import prediction
 
 plt.style.use('ggplot')
 
@@ -123,7 +124,7 @@ def plot_predicted_total_start_trips(start_time_matrix):
     predicted_x_plot = np.linspace(0, prediction_buckets, prediction_buckets*10)[:,None]
     X = np.array(list(range(buckets))).reshape((buckets, 1))
 
-    predictor = utils.fit_seasonal_trend(total_start_trips[:predict_using])
+    predictor = prediction.fit_seasonal_trend(total_start_trips[:predict_using])
     predicted_y = predictor(predicted_x_plot)
 
     plt.plot(predicted_x_plot, predicted_y, color='g', label='Prediction')
@@ -136,6 +137,12 @@ def plot_predicted_total_start_trips(start_time_matrix):
     plt.xticks(*utils.year_labels(utils.INTERVAL_WEEKLY), rotation=70)
     plt.legend(loc='upper left')
     savefig('total_weekly_trips_prediction.pdf')
+
+def plot_predicted_flow_baseline(flow_matrix):
+    # TODO
+    avg_week_predictor = prediction.train_avg_week_predictor(flow_matrix[:,10000])
+    avg_week_predictor(np.array([10001, 10002]))
+    pdb.set_trace()
 
 def plot_map(cluster_assignments,
              station_info,
@@ -247,7 +254,6 @@ def main():
         "Net change in bikes at station over week","avg_week_flow_time.pdf")
 
     plot_total_start_trips(start_time_matrix, time_idx)
-    plot_predicted_total_start_trips(start_time_matrix)
 
     # Some interesting stations: 3412, 3324, 3285, 3286, 3153, 360, 195, 2023, 3095, 432, 511, 438
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
@@ -262,7 +268,7 @@ def main():
         "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
 
     # Cluster stations
-    print("Clustering stations...")
+    print("Clustering stations")
     avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
     cluster_assignments, means = gmm.gmm(avg_weekly_flow, K=3)
 
@@ -274,6 +280,11 @@ def main():
 
     # Plot clustered stations on map
     plot_map(cluster_assignments, station_info, station_idx, inverse_station)
+
+    # Predictions
+    plot_predicted_total_start_trips(start_time_matrix)
+    plot_predicted_flow_baseline(flow_matrix)
+
     
 
 if __name__ == '__main__':

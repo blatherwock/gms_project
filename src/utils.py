@@ -18,8 +18,6 @@ from datetime import timedelta
 from scipy.sparse import lil_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import hstack
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, RBF
 
 import pdb
 
@@ -110,6 +108,7 @@ def time_idx(start_time):
     # half hour intervals between the start date and the given start_time
     half_hour_intervals = difference.days * (24 * 2) + difference.seconds / (30 * 60)
     return math.floor(half_hour_intervals)
+
 def time_at_idx(idx):
     delta = timedelta(seconds=idx * (30 * 60))
     return DATA_START + delta
@@ -315,22 +314,6 @@ def _reshape_and_aggregate(time_matrix, interval, aggregator_fn, axes=[2,0]):
         # Aggregate along the second dim
         temp_trips = aggregator_fn(temp_trips, axis=axes[1])
     return temp_trips
-
-
-def fit_seasonal_trend(bucketed_totals):
-    def fit(X, Y):
-        gp_kernel = RBF(300) + ExpSineSquared(1.0, 52.0, periodicity_bounds=(1e-2, 1e10)) + WhiteKernel(1e-1)
-        model = GaussianProcessRegressor(kernel=gp_kernel)
-        model.fit(X, Y)
-        return model
-    def predict_fn(model, scaling_factor):
-        return lambda x: model.predict(x) * scaling_factor
-
-    n_buckets = bucketed_totals.shape[0]
-    scaling_factor = 100000
-    X = np.array(range(n_buckets)).reshape((n_buckets, 1))
-    Y = bucketed_totals.reshape((n_buckets, 1)) / scaling_factor
-    return predict_fn(fit(X, Y), scaling_factor)
 
 def normalize(time_matrix):
     # Normalize the stations by for each station, take the min or max
