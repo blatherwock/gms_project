@@ -1,123 +1,40 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+"""
+This file contains code for clustering all examples in X into K clusters,
+using GMM model, and Gibbs Sampling algorithm.
+"""
 
-import edward as ed
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import numpy as np
-import tensorflow as tf
+from bayes_gmm.fbgmm import FBGMM
+from bayes_gmm.niw import NIW
 
-from edward.models import Dirichlet, Normal, InverseGamma
-from edward.stats import dirichlet, invgamma, multivariate_normal_diag, norm
-from edward.util import get_dims, log_sum_exp
+def gmm(X,
+        K=4,
+        n_iter=100,
+        alpha=1.0,
+        mu_scale=4.0,
+        var_scale=0.5,
+        covar_scale=0.7):
+    N, D = X.shape
 
-import pdb
+    # Initialize prior
+    m_0 = np.zeros(D)
+    k_0 = covar_scale**2/mu_scale**2
+    v_0 = D + 3
+    S_0 = covar_scale**2*v_0*np.ones(D)
+    prior = NIW(m_0, k_0, v_0, S_0)
 
-plt.style.use('ggplot')
+    # Setup FBGMM
+    fbgmm = FBGMM(X, prior, alpha, K, "rand")
 
+    # Perform Gibbs sampling
+    record = fbgmm.gibbs_sample(n_iter)
 
-class MixtureGaussian:
-  """
-  Mixture of Gaussians
+    K = fbgmm.components.K
 
-  p(x, z) = [ prod_{n=1}^N sum_{k=1}^K pi_k N(x_n; mu_k, sigma_k) ]
-            [ prod_{k=1}^K N(mu_k; 0, cI) Inv-Gamma(sigma_k; a, b) ]
-            Dirichlet(pi; alpha)
+    # Augmenting X by adding cluster means as new points
+    mus = np.zeros(shape=(K, D))
+    for k in range(fbgmm.components.K):
+        mu, _ = fbgmm.components.rand_k(k)
+        mus[k,:] = mu
 
-  where z = {pi, mu, sigma} and for known hyperparameters a, b, c, alpha.
-
-  Parameters
-  ----------
-  K : int
-    Number of mixture components.
-  D : float, optional
-    Dimension of the Gaussians.
-  """
-  def __init__(self, K, D):
-    self.K = K
-    self.D = D
-    self.n_vars = (2 * D + 1) * K
-
-    self.a = 1.0
-    self.b = 1.0
-    self.c = 3.0
-    self.alpha = tf.ones([K])
-
-  def log_prob(self, xs, zs):
-    """Return scalar, the log joint density log p(xs, zs)."""
-    x = xs['x']
-    pi, mus, sigmas = zs['pi'], zs['mu'], zs['sigma']
-    log_prior = dirichlet.logpdf(pi, self.alpha)
-    log_prior += tf.reduce_sum(norm.logpdf(mus, 0.0, self.c))
-    log_prior += tf.reduce_sum(invgamma.logpdf(sigmas, self.a, self.b))
-
-    # log-likelihood is
-    # sum_{n=1}^N log sum_{k=1}^K exp( log pi_k + log N(x_n; mu_k, sigma_k) )
-    # Create a K x N matrix, whose entry (k, n) is
-    # log pi_k + log N(x_n; mu_k, sigma_k).
-    N = get_dims(x)[0]
-    matrix = []
-    for k in range(self.K):
-      matrix += [tf.ones(N) * tf.log(pi[k]) +
-                 multivariate_normal_diag.logpdf(x,
-                 mus[(k * self.D):((k + 1) * self.D)],
-                 sigmas[(k * self.D):((k + 1) * self.D)])]
-
-    matrix = tf.pack(matrix)
-    # log_sum_exp() along the rows is a vector, whose nth
-    # element is the log-likelihood of data point x_n.
-    vector = log_sum_exp(matrix, 0)
-    # Sum over data points to get the full log-likelihood.
-    log_lik = tf.reduce_sum(vector)
-
-    return log_prior + log_lik
-
-  def predict(self, xs, zs):
-    """Calculate a K x N matrix of log-likelihoods, per-cluster and
-    per-data point."""
-    x = xs['x']
-    pi, mus, sigmas = zs['pi'], zs['mu'], zs['sigma']
-
-    matrix = []
-    for k in range(self.K):
-      matrix += [multivariate_normal_diag.logpdf(x,
-                 mus[(k * self.D):((k + 1) * self.D)],
-                 sigmas[(k * self.D):((k + 1) * self.D)])]
-
-    return tf.pack(matrix)
-
-def gmm(x_train, K=3, D=2):
-  x_train = x_train.astype(np.float32)
-  ed.set_seed(148)
-  model = MixtureGaussian(K, D)
-
-  qpi_alpha = tf.nn.softplus(tf.Variable(tf.random_normal([K])))
-  qmu_mu = tf.Variable(tf.random_normal([K * D]))
-  qmu_sigma = tf.nn.softplus(tf.Variable(tf.random_normal([K * D])))
-  qsigma_alpha = tf.nn.softplus(tf.Variable(tf.random_normal([K * D])))
-  qsigma_beta = tf.nn.softplus(tf.Variable(tf.random_normal([K * D])))
-  pdb.set_trace()
-
-  qpi = Dirichlet(alpha=qpi_alpha)
-  qmu = Normal(mu=qmu_mu, sigma=qmu_sigma)
-  qsigma = InverseGamma(alpha=qsigma_alpha, beta=qsigma_beta)
-
-  data = {'x': x_train}
-  inference = ed.KLqp({'pi': qpi, 'mu': qmu, 'sigma': qsigma}, data, model)
-  inference.run(n_iter=100, n_print=1, n_samples=100, n_minibatch=10)
-
-  # Average per-cluster and per-data point likelihood over many posterior samples.
-  log_liks = []
-  for s in range(100):
-    zrep = {'pi': qpi.sample(()),
-            'mu': qmu.sample(()),
-            'sigma': qsigma.sample(())}
-    log_liks += [model.predict(data, zrep)]
-
-  log_liks = tf.reduce_mean(log_liks, 0)
-
-  # Choose the cluster with the highest likelihood for each data point.
-  clusters = tf.argmax(log_liks, 0).eval()
-
-  return clusters
+    return fbgmm.components.assignments, mus
