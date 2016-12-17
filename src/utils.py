@@ -7,6 +7,8 @@ import re
 from urllib2 import urlopen
 import xml.etree.ElementTree as ET
 import zipfile
+import requests
+import pickle
 import glob
 import math
 import pandas as pd
@@ -61,6 +63,24 @@ def download_trips_dataset(force_download=False):
                         os.rename(csv_file_path, "%s.csv" % base_file_path)
                 os.remove(zip_file_path)
 
+def load_station_info(force_download=False):
+    #info_url = "https://gbfs.citibikenyc.com/gbfs/en/station_information.json"
+    info_url = "https://feeds.citibikenyc.com/stations/stations.json"
+    station_info_pkl = os.path.join(data_dir, "station_info.pkl")
+
+    if os.path.isfile(station_info_pkl):
+        print("{} already exist, skipping download".format(station_info_pkl))
+    else:
+        info_json = requests.get(info_url).json()
+        #station_info_list = info_json['data']['stations']
+        station_info_list =info_json['stationBeanList']
+        #station_info =  { elem['station_id'] : elem for elem in station_info_list }
+        station_info =  { elem['id'] : elem for elem in station_info_list }
+        with open(station_info_pkl, 'wb') as pkl:
+            pickle.dump(station_info, pkl)
+
+    with open(station_info_pkl, 'rb') as pkl:
+        return pickle.load(pkl)
 
 def load_trips_dataframe(year=16):
     """Loads Citi Bike Trips Histories dataset into Pandas' dataframe"""

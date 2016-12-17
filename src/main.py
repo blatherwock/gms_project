@@ -13,6 +13,7 @@ import math
 
 import numpy as np
 from sklearn.manifold import TSNE
+from scipy.misc import imread
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -136,6 +137,38 @@ def plot_predicted_total_start_trips(start_time_matrix):
     plt.legend(loc='upper left')
     savefig('total_weekly_trips_prediction.pdf')
 
+def plot_map(station_info, station_idx):
+    print("Plotting NYC map")
+    inverse_station = { v: k for k, v in station_idx.items() }
+    locations = np.zeros((len(station_idx), 2))
+    skipped_locs = []
+    for station_id, idx in station_idx.items():
+        if station_id in station_info:
+            locations[idx, 0] = station_info[station_id]['longitude']
+            locations[idx, 1] = station_info[station_id]['latitude']
+        else:
+            # One of the corners of our data
+            locations[idx, 0] = -74.01713445
+            locations[idx, 1] = 40.804213
+            skipped_locs.append(station_id)
+    print("Couldn't find infomation about stations: {}".format(skipped_locs))
+
+    img = imread('./src/nyc.png')
+    plt.imshow(img, zorder=0, extent=[-74.10, -73.85, 40.65, 40.85])
+
+    X = locations[:,0]
+    Y = locations[:,1]
+    plt.title("Bike Locations")
+    plt.scatter(X, Y, zorder=1)
+    plt.axis([-74.10, -73.85, 40.65, 40.85])
+
+    # for i in range(0,locations.shape[0]):
+    #     xy = (locations[i,0], locations[i,1])
+    #     station_id = inverse_station[i]
+    #     if station_id in station_info:
+    #         name = "{}".format(station_info[station_id]['stationName'] if i in inverse_station else "")
+    #         plt.annotate(name, xy=xy, textcoords='data', fontsize=2)
+    savefig("station_map.pdf")
 
 def plot_tsne(avg, inverse_station, clusters=None, plot_title="t-SNE", file_name="t-SNE.pdf"):
     print("Plotting t-SNE...")
@@ -187,7 +220,6 @@ def main():
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
         "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
 
-
     # # Under development
     # avg = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
     # model = TSNE(n_components=2, random_state=0)
@@ -211,7 +243,6 @@ def main():
     # for i, xy in enumerate(zip(X, Y)):
     #     plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
     # savefig("Clustered_t-SNE.pdf")
-    
 
 if __name__ == '__main__':
     main()
