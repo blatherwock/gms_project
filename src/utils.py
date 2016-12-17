@@ -4,7 +4,7 @@ This file contains implementation of some needed utility funtions.
 
 import os
 import re
-from urllib2 import urlopen
+import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 import glob
@@ -43,7 +43,7 @@ def download_trips_dataset(force_download=False):
 
     base_url = "https://s3.amazonaws.com/tripdata/"
     zip_file_name_pattern = "\d+-citibike-tripdata.zip"
-    root = ET.parse(urlopen.build_opener().open(base_url)).getroot()
+    root = ET.parse(urllib.request.build_opener().open(base_url)).getroot()
     for child in root:
         if child.tag.endswith("Contents") and len(child) > 0:
             zip_file_name = child[0].text
@@ -51,7 +51,7 @@ def download_trips_dataset(force_download=False):
                 print("Downloading %s..." % zip_file_name)
                 zip_file_url = base_url + zip_file_name
                 zip_file_path = os.path.join(dataset_dir, zip_file_name)
-                urlopen.urlretrieve(zip_file_url, zip_file_path)
+                urllib.request.urlretrieve(zip_file_url, zip_file_path)
                 print("Extracting %s..." % zip_file_name)
                 base_file_path = os.path.splitext(zip_file_path)[-2]
                 with zipfile.ZipFile(zip_file_path) as zf:
@@ -75,9 +75,9 @@ def load_trips_dataframe(year=16):
             dataframes.append(pd.read_csv(file, usecols=["starttime", "stoptime", "start station id", "end station id", "bikeid"], parse_dates=["starttime", "stoptime"]))
         print("Concatenating all loaded files and pickling result...")
         pd.concat(dataframes).reset_index(drop=True).to_pickle(trip_histories_pkl)
-    # print("Loading Pickle...", end="")
+    print("Loading Pickle...", end="")
     temp = pd.read_pickle(trip_histories_pkl)
-    # print("\rLoading Complete")
+    print("\rLoading Complete")
     return temp
 
 def time_idx(start_time):
@@ -130,7 +130,7 @@ def load_start_time_matrix():
             year_matrix = lil_matrix((MAX_POSSIBLE_STATIONS, year_end_index - year_start_index + 1), dtype=np.uint8)
             print("Processing trip data for year 20{}".format(y))
             for row in trips.itertuples():
-                # print("\rrow: {index:>11,}".format(index=row[0]), end="")
+                print("\rrow: {index:>11,}".format(index=row[0]), end="")
                 station_id = row[STATION_ID_COL]
                 start_time = row[START_TIME_COL].to_datetime()
                 if station_id not in station_idx:
@@ -181,7 +181,7 @@ def load_stop_time_matrix():
             trips = load_trips_dataframe(y)#.sample(1000, random_state=12345)
             print("Processing trip data for year 20{}".format(y))
             for row in trips.itertuples():
-                # print("\rrow: {index:>11,}".format(index=row[0]), end="")
+                print("\rrow: {index:>11,}".format(index=row[0]), end="")
                 station_id = row[STATION_ID_COL]
                 stop_time = row[STOP_TIME_COL].to_datetime()
                 if station_id not in station_idx:

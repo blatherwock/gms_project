@@ -3,10 +3,6 @@ This file contains the main logic for training and evaluating a graphical
 model that predicts New York Citi Bikes future locations.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import pdb
 import os
 import math
@@ -24,9 +20,11 @@ plt.style.use('ggplot')
 
 out_folder = os.path.join(os.path.split(__file__)[0], "..", "out")
 
+
 def savefig(file_name):
     plt.savefig(os.path.join(out_folder, file_name))
     plt.clf()
+
 
 def process_trips(trips_df):
     print(trips_df.info())
@@ -108,6 +106,7 @@ def plot_total_start_trips(start_time_matrix, time_idx):
     plot_total_over_day(np.sum, "Total", "total_trips_30_min_bucket_over_day.pdf")
     plot_total_over_day(np.mean, "Avg", "avg_trips_30_min_bucket_over_day.pdf")
 
+
 def plot_predicted_total_start_trips(start_time_matrix):
     interval_name = "week"
     total_start_trips = utils.get_total_weekly_trips(start_time_matrix)
@@ -137,16 +136,51 @@ def plot_predicted_total_start_trips(start_time_matrix):
     savefig('total_weekly_trips_prediction.pdf')
 
 
-def plot_tsne(avg, inverse_station, clusters=None, plot_title="t-SNE", file_name="t-SNE.pdf"):
-    print("Plotting t-SNE...")
-    model = TSNE(n_components=2, random_state=0)
-    avg_matrix_2d = model.fit_transform(avg)
-    X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
+def plot_cluster_means(mus,
+                       time_at_idx,
+                       colors,
+                       plot_title="Cluster means",
+                       file_name="cluster_means.pdf"):
     plt.title(plot_title)
-    plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
-    for i, xy in enumerate(zip(X, Y)):
-        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    plt.ylabel('Number of trips')
+    plt.xlabel('Time bucket')
+
+    x_axis = [time_at_idx(i) for i in range(0, 48*7)]
+    for i in range(mus.shape[0]):
+        plt.plot(x_axis, mus[i], linestyle="solid", alpha=0.8, label="Cluster {}".format(i), color=colors[i])
+
+    xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
+    xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
+    plt.xticks(xticks, xticklabels, rotation=70)
+    plt.legend(loc="upper right")
     savefig(file_name)
+
+
+def plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3):
+    print("Plotting station clusters")
+    avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
+    cluster_assignments, means = gmm.gmm(avg_weekly_flow, K=K)
+    X = np.vstack([avg_weekly_flow, means])
+
+    # Plotting means
+    colors = np.hstack([np.array([x for x in "kymcrgb"])] * 20)
+    plot_cluster_means(means, time_at_idx, colors, plot_title="Cluster means (week)", file_name="cluster_means.pdf")
+
+    # t-SNE for X
+    model = TSNE(n_components=2, random_state=0)
+    X_tsne = model.fit_transform(X)
+
+    # Plot resulting clusters in 2d
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    plt.title("Clustered stations (t-SNE representation)")
+    ax.scatter(X_tsne[:-K, 0], X_tsne[:-K, 1], color=colors[cluster_assignments].tolist(), s=10, alpha=0.7)
+    for i, xy in enumerate(zip(X_tsne[:-K, 0], X_tsne[:-K, 1])):
+        plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
+    for k in range(K):
+        mu = X_tsne[-K+k, :]
+        ax.scatter(mu[0], mu[1], s=50, color=colors[k], marker="+")
+    savefig("clustered_stations.pdf")
 
 
 def main():
@@ -155,6 +189,8 @@ def main():
     #for y in utils.YEARS:
     #   utils.load_trips_dataframe(y)
     #   process_trips(trips_df)
+
+    np.random.seed(1)
 
     start_time_matrix, station_idx, time_idx, time_at_idx = utils.load_start_time_matrix()
     stop_time_matrix, _, _ = utils.load_stop_time_matrix()
@@ -169,13 +205,11 @@ def main():
         "Number of trips stopped at station over week", "avg_week_stop_time.pdf")
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 146, 432, 161, 497, 517], 
         "Net change in bikes at station over week","avg_week_flow_time.pdf")
-    
-    
+
     plot_total_start_trips(start_time_matrix, time_idx)
     plot_predicted_total_start_trips(start_time_matrix)
 
     # Some interesting stations: 3412, 3324, 3285, 3286, 3153, 360, 195, 2023, 3095, 432, 511, 438
-
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
         "Net change in bikes at station over week (normalized)","normalized_avg_week_flow_time.pdf", True)
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, [360, 195, 497, 146, 161], 
@@ -187,30 +221,8 @@ def main():
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
         "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
 
-
-    # # Under development
-    # avg = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
-    # model = TSNE(n_components=2, random_state=0)
-    # avg_matrix_2d = model.fit_transform(avg)
-    # avg_matrix_2d = avg_matrix_2d[:10,:] / 40.0
-    # X, Y = avg_matrix_2d[:,0], avg_matrix_2d[:,1]
-    # plt.title("t-SNE")
-    # plt.scatter(X, Y)
-    # for i, xy in enumerate(zip(X, Y)):
-    #     plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
-    # savefig("t-SNE.pdf")
-    # # pdb.set_trace()
-
-    # # clusters = gmm.gmm(avg_matrix_2d, K=4, D=2)
-    # clusters = [0] * 10
-    
-    # print(clusters)
-    # pdb.set_trace()
-    # plt.title("t-SNE")
-    # plt.scatter(X, Y, c=clusters, cmap=cm.gist_rainbow)
-    # for i, xy in enumerate(zip(X, Y)):
-    #     plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
-    # savefig("Clustered_t-SNE.pdf")
+    # Clustering stations
+    plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3)
     
 
 if __name__ == '__main__':
