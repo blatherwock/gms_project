@@ -139,10 +139,16 @@ def plot_predicted_total_start_trips(start_time_matrix):
     savefig('total_weekly_trips_prediction.pdf')
 
 def plot_predicted_flow_baseline(flow_matrix):
-    # TODO
-    avg_week_predictor = prediction.train_avg_week_predictor(flow_matrix[:,10000])
-    avg_week_predictor(np.array([10001, 10002]))
-    pdb.set_trace()
+    # TODO: Figure out why this doesn't look the way we expect it to look
+    avg_week_predictor = prediction.train_avg_week_predictor(flow_matrix)
+    idx = np.array(range(flow_matrix.shape[1]))
+    errors = np.mean(np.abs(avg_week_predictor(idx) - flow_matrix), axis=0)
+    errors = errors.A.flatten()
+    plt.plot(errors)
+    plt.title("Total error in baseline predictor")
+    plt.ylabel("mean error")
+    plt.xticks(*utils.year_labels(), rotation=70)
+    savefig("baseline_predictor_errors.pdf")
 
 def plot_map(cluster_assignments,
              station_info,
