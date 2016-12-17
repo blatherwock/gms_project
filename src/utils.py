@@ -267,7 +267,33 @@ def get_agg_trips_by_interval(time_matrix, interval=INTERVAL_DAILY, aggregator_f
 def get_station_agg_trips_over_week(time_matrix, aggregator_fn=np.sum):
     # Aggregate along just the year axis
     # Leaving matrix of stations x week
-    return _reshape_and_aggregate(time_matrix, INTERVAL_WEEKLY, aggregator_fn, axes=[1])
+    n_stations, total_buckets = time_matrix.shape
+    interval = INTERVAL_WEEKLY
+    end_index = math.floor(total_buckets / interval) * interval
+    temp_trips = time_matrix[:, :end_index].todense().A
+
+    first_data_idx = np.zeros((n_stations,1))
+    for i in range(0,n_stations):
+        non_zero_trips = temp_trips[i,:].nonzero()[0]
+        if len(non_zero_trips) > 0:
+            first_data_idx[i] = non_zero_trips[0]
+        else:
+            first_data_idx[i] = end_index - 1
+
+    first_data_weekly_idx = np.floor(first_data_idx / interval)
+
+    # Reshape the matrix so we have a 3rd dimension for the weekly data
+    temp_trips = temp_trips.reshape((n_stations, -1, interval))
+
+    # Aggregate along the first dim
+    final_matrix = np.zeros((n_stations, interval))
+    for i in range(0,n_stations):
+        final_matrix[i,:] = aggregator_fn(temp_trips[i, int(first_data_weekly_idx[i]):, :], axis=0)
+
+    return final_matrix
+
+
+
 
 def get_agg_trips_over_day(time_matrix, aggregator_fn=np.sum):
     # This aggregates across the years into a station x 30 min throughout day matrix
