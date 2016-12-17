@@ -20,6 +20,7 @@ import gmm
 plt.style.use('ggplot')
 
 out_folder = os.path.join(os.path.split(__file__)[0], "..", "out")
+cluster_colors = np.array(list("rgbcyk"))
 
 
 def savefig(file_name):
@@ -136,14 +137,14 @@ def plot_predicted_total_start_trips(start_time_matrix):
     plt.legend(loc='upper left')
     savefig('total_weekly_trips_prediction.pdf')
 
-def plot_map(flow_matrix, station_info, station_idx):
+def plot_map(cluster_assignments,
+             station_info,
+             station_idx,
+             inverse_station,
+             plot_title="Bike Locations",
+             file_name="station_map.pdf",
+             add_labels=False):
     print("Plotting NYC map")
-
-    avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)[:len(station_idx),:]
-    cluster_assignments, _ = gmm.gmm(avg_weekly_flow, K=3)
-
-    colors = np.array(['r','g','b','c','y','k'])
-    inverse_station = { v: k for k, v in station_idx.items() }
     locations = np.zeros((len(station_idx), 2))
     skipped_locs = []
     for station_id, idx in station_idx.items():
@@ -162,22 +163,22 @@ def plot_map(flow_matrix, station_info, station_idx):
 
     X = locations[:,0]
     Y = locations[:,1]
-    plt.title("Bike Locations")
-    plt.scatter(X, Y, c=colors[cluster_assignments].tolist(), zorder=1)
+    plt.title(plot_title)
+    plt.scatter(X, Y, c=cluster_colors[cluster_assignments].tolist(), zorder=1)
     plt.axis([-74.10, -73.85, 40.65, 40.85])
 
-    # for i in range(0,locations.shape[0]):
-    #     xy = (locations[i,0], locations[i,1])
-    #     station_id = inverse_station[i]
-    #     if station_id in station_info:
-    #         name = "{}".format(station_info[station_id]['stationName'] if i in inverse_station else "")
-    #         plt.annotate(name, xy=xy, textcoords='data', fontsize=2)
-    savefig("station_map.pdf")
+    if add_labels:
+        for i in range(0,locations.shape[0]):
+            xy = (locations[i,0], locations[i,1])
+            station_id = inverse_station[i]
+            if station_id in station_info:
+                name = "{}".format(station_info[station_id]['stationName'] if i in inverse_station else "")
+                plt.annotate(name, xy=xy, textcoords='data', fontsize=2)
+    savefig(file_name)
 
 def plot_cluster_means(mus,
                        time_at_idx,
-                       colors,
-                       plot_title="Cluster means",
+                       plot_title="Cluster means (week)",
                        file_name="cluster_means.pdf"):
     plt.title(plot_title)
     plt.ylabel('Number of trips')
@@ -185,7 +186,7 @@ def plot_cluster_means(mus,
 
     x_axis = [time_at_idx(i) for i in range(0, 48*7)]
     for i in range(mus.shape[0]):
-        plt.plot(x_axis, mus[i], linestyle="solid", alpha=0.8, label="Cluster {}".format(i), color=colors[i])
+        plt.plot(x_axis, mus[i], linestyle="solid", alpha=0.8, label="Cluster {}".format(i), color=cluster_colors[i])
 
     xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
     xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
@@ -194,15 +195,15 @@ def plot_cluster_means(mus,
     savefig(file_name)
 
 
-def plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3):
+def plot_clustered_stations_2d(avg_weekly_flow,
+                               cluster_assignments,
+                               means,
+                               inverse_station,
+                               plot_title="Clustered stations (t-SNE representation)",
+                               file_name="clustered_stations.pdf"):
     print("Plotting station clusters")
-    avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
-    cluster_assignments, means = gmm.gmm(avg_weekly_flow, K=K)
+    K = means.shape[0]
     X = np.vstack([avg_weekly_flow, means])
-
-    # Plotting means
-    colors = np.hstack([np.array([x for x in "kymcrgb"])] * 20)
-    plot_cluster_means(means, time_at_idx, colors, plot_title="Cluster means (week)", file_name="cluster_means.pdf")
 
     # t-SNE for X
     model = TSNE(n_components=2, random_state=0)
@@ -211,14 +212,14 @@ def plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station,
     # Plot resulting clusters in 2d
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    plt.title("Clustered stations (t-SNE representation)")
-    ax.scatter(X_tsne[:-K, 0], X_tsne[:-K, 1], color=colors[cluster_assignments].tolist(), s=10, alpha=0.7)
+    plt.title(plot_title)
+    ax.scatter(X_tsne[:-K, 0], X_tsne[:-K, 1], color=cluster_colors[cluster_assignments].tolist(), s=10, alpha=0.7)
     for i, xy in enumerate(zip(X_tsne[:-K, 0], X_tsne[:-K, 1])):
         plt.annotate("{}".format(inverse_station[i] if i in inverse_station else ""), xy=xy, textcoords='data', fontsize=2)
     for k in range(K):
         mu = X_tsne[-K+k, :]
-        ax.scatter(mu[0], mu[1], s=50, color=colors[k], marker="+")
-    savefig("clustered_stations.pdf")
+        ax.scatter(mu[0], mu[1], s=50, color=cluster_colors[k], marker="+")
+    savefig(file_name)
 
 
 def main():
@@ -260,11 +261,19 @@ def main():
     plot_avg_week_for_stations(flow_matrix, station_idx, time_at_idx, None, 
         "Net change in bikes at station over week (normalized, rounded)","normalized_round_all_avg_week_flow_time.pdf", True, True)
 
-    # Clustering stations
-    plot_clustered_stations_and_means(flow_matrix, time_at_idx, inverse_station, K=3)
+    # Cluster stations
+    print("Clustering stations...")
+    avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
+    cluster_assignments, means = gmm.gmm(avg_weekly_flow, K=3)
 
-    # Plot stations on map
-    plot_map(flow_matrix, station_info, station_idx)
+    # Plot clustered stations in 2d
+    plot_clustered_stations_2d(avg_weekly_flow, cluster_assignments, means, inverse_station)
+
+    # Plot weekly graph for mean of each cluster
+    plot_cluster_means(means, time_at_idx)
+
+    # Plot clustered stations on map
+    plot_map(cluster_assignments, station_info, station_idx, inverse_station)
     
 
 if __name__ == '__main__':
