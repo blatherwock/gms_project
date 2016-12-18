@@ -8,6 +8,7 @@ import os
 import math
 
 import numpy as np
+from numpy.random import randint
 from sklearn.manifold import TSNE
 from scipy.misc import imread
 
@@ -52,7 +53,10 @@ def plot_avg_week_for_stations(start_time_matrix,
                                normalize=False,
                                round=False):
     print("Plotting normalized average weeks for stations")
-    avg = utils.get_station_agg_trips_over_week(start_time_matrix, np.mean)
+    if (start_time_matrix.shape[1] > utils.INTERVAL_WEEKLY):
+        avg = utils.get_station_agg_trips_over_week(start_time_matrix, np.mean)
+    else:
+        avg = start_time_matrix
     if normalize:
         avg = utils.normalize(avg)
     if round:
@@ -68,7 +72,8 @@ def plot_avg_week_for_stations(start_time_matrix,
             plt.plot(x_axis, avg[station_idx[station_id],:], linestyle="solid", alpha=0.8, label=station_id)
     else:
         for i in range(avg.shape[0]):
-            plt.plot(x_axis, avg[i], linestyle="solid", alpha=0.01, color="k")
+            plt.plot(x_axis, avg[i], linestyle="solid", alpha=0.03, color="k")
+            plt.ylim(-50,40)
 
     xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,6,12,18] ]
     xticklabels = [ x.strftime("%a") if x.hour == 0 else x.hour if x.hour in [12] else "" for x in xticks ]
@@ -276,7 +281,12 @@ def main():
     # Cluster stations
     print("Clustering stations")
     avg_weekly_flow = utils.get_station_agg_trips_over_week(flow_matrix, np.mean)
-    cluster_assignments, means = gmm.gmm(avg_weekly_flow, K=3)
+    cluster_assignments, means, ppc = gmm.gmm(avg_weekly_flow, K=3, posterior_predictive_check=True)
+
+    # Plot the posterior predictive check
+    random_indices = randint(0, flow_matrix.shape[0], size=150)
+    plot_avg_week_for_stations(ppc[0][random_indices], station_idx, time_at_idx, None, "Posterior Predictive Check on average flow", "post_pred_check.pdf")
+    plot_avg_week_for_stations(flow_matrix[random_indices], station_idx, time_at_idx, None, "Average flow for 150 random stations", "post_pred_check_orig.pdf")
 
     # Plot clustered stations in 2d
     plot_clustered_stations_2d(avg_weekly_flow, cluster_assignments, means, inverse_station)
