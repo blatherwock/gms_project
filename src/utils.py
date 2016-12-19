@@ -291,6 +291,20 @@ def get_station_agg_trips_over_week(time_matrix, aggregator_fn=np.sum):
 
     return final_matrix
 
+def construct_active_stations_by_bucket(start_time_matrix):
+    # This works because we assume that the stations are ordered in start_time_matrix
+    # by their 'activation' date. This assumption is currently correct because when we
+    # build the start time matrix we go through the trip log, which is ordered in this manner
+    active_stations = np.zeros(start_time_matrix.shape[1], dtype=np.int32)
+    current_num = 0
+    for i in range(active_stations.shape[0]):
+        for j in range(current_num, start_time_matrix.shape[0]):
+            if start_time_matrix[j,i] > 0:
+                current_num += 1
+            else:
+                break
+        active_stations[i] = current_num
+    return active_stations
 
 
 

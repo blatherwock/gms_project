@@ -9,6 +9,7 @@ import math
 
 import numpy as np
 from numpy.random import randint
+from numpy.random import choice
 from sklearn.manifold import TSNE
 from scipy.misc import imread
 
@@ -155,6 +156,114 @@ def plot_predicted_flow_baseline(flow_matrix):
     plt.xticks(*utils.year_labels(), rotation=70)
     savefig("baseline_predictor_errors.pdf")
 
+def plot_cluster_predictor_sample_error(start_time_matrix, flow_matrix, cluster_assignments, means):
+    predictor = prediction.train_cluster_based_predictor(start_time_matrix, flow_matrix, cluster_assignments, means)
+
+    samples = [ utils.time_idx("2015-04-06 00:00:00"), utils.time_idx("2015-06-15 00:00:00"), utils.time_idx("2015-01-12 00:00:00") ]
+    station_id = 194
+    weekly_samples = [ flow_matrix[station_id, s:s+utils.INTERVAL_WEEKLY].todense().A.flatten() for s in samples ]
+
+    all_weeks = np.hstack(weekly_samples)
+    predictions = [0]*len(samples)
+    for i in range(len(samples)):
+        s = samples[i]
+        predictions[i] = predictor(np.array(range(s, s+utils.INTERVAL_WEEKLY)))[station_id]
+    predictions = np.hstack(predictions).flatten()
+
+    error = predictions - all_weeks
+    abs_error = np.abs(error)
+
+    spring_x = [utils.time_at_idx(i) for i in range(utils.INTERVAL_WEEKLY * 0, utils.INTERVAL_WEEKLY * 1)]
+    summer_x = [utils.time_at_idx(i) for i in range(utils.INTERVAL_WEEKLY * 1, utils.INTERVAL_WEEKLY * 2)]
+    winter_x = [utils.time_at_idx(i) for i in range(utils.INTERVAL_WEEKLY * 2, utils.INTERVAL_WEEKLY * 3)]
+    x_axis = [utils.time_at_idx(i) for i in range(utils.INTERVAL_WEEKLY * 0, utils.INTERVAL_WEEKLY * 3)]
+    x = spring_x, summer_x, winter_x
+    c=['g','b','c']
+    label=["spring", "summer", "winter"]
+    plt.plot(x_axis, abs_error, c='r', label="Error", alpha=0.2)
+    for i in range(len(samples)):
+        plt.plot(x[i], weekly_samples[i], c=c[i], label=label[i], alpha=0.5)
+    plt.plot(x_axis, predictions, c='k', label="Predictions", alpha=0.5)
+
+    plt.title("3 samples of a station throughout the year")
+    plt.legend(loc="lower right")
+    plt.ylabel("Station Flow")
+    xticks = [ x for x in x_axis if x.minute == 0 and x.hour in [0,12] ]
+    xticklabels = [ x.strftime("%a") if x.hour == 0 else "" for x in xticks ]
+    plt.xticks(xticks, xticklabels, rotation=70)
+    savefig("cluster_predictor_samples.pdf")
+
+
+def plot_average_predictor_error(start_time_matrix, flow_matrix):
+    print("Running average predictor test.")
+    test_start = utils.time_idx("2015-06-01 00:00:00")
+
+    predictor = prediction.train_avg_week_predictor(flow_matrix[:,:test_start])
+    name = "Average Predictor"
+    file_name = "error_breakdown_avg_pred.pdf"
+    plot_predictor_error(predictor, start_time_matrix, flow_matrix, name, file_name)
+
+def plot_seasonal_average_predictor_error(start_time_matrix, flow_matrix):
+    print("Running seasonal average predictor test.")
+    test_start = utils.time_idx("2015-06-01 00:00:00")
+
+    predictor = prediction.train_seasonal_avg_week_predictor(start_time_matrix[:,:test_start], flow_matrix[:,:test_start])
+    name = "Avg Pred w/ Seasonal Multiplier"
+    file_name = "error_breakdown_avg_season_pred.pdf"
+    plot_predictor_error(predictor, start_time_matrix, flow_matrix, name, file_name)
+
+def plot_cluster_predictor_error(start_time_matrix, flow_matrix, cluster_assignments, means):
+    print("Running cluster predictor test.")
+    test_start = utils.time_idx("2015-06-01 00:00:00")
+
+    predictor = prediction.train_cluster_based_predictor(start_time_matrix[:,:test_start], flow_matrix[:,:test_start], 
+                                                         cluster_assignments, means)
+
+    name = "Cluster Predictor"
+    file_name = "error_breakdown_cluster_pred.pdf"
+    plot_predictor_error(predictor, start_time_matrix, flow_matrix, name, file_name)
+
+def plot_predictor_error(predictor, start_time_matrix, flow_matrix, name, file_name):
+    test_start = utils.time_idx("2015-06-01 00:00:00")
+    test_end = utils.time_idx("2016-06-01 00:00:00")
+
+    active_stations = utils.construct_active_stations_by_bucket(start_time_matrix)
+    test_indices = choice(np.arange(test_start, test_end), size=5000, replace=False)
+    actuals = flow_matrix.todense().A
+
+    error = None
+    for i in test_indices:
+        pred = predictor(i)
+        act = actuals[:,i]
+        test_stations = choice(active_stations[i], size=int(np.floor(active_stations[i] * .8)), replace=False)
+        test_error = (pred - act)[test_stations]
+        if error is None:
+            error = test_error
+        else:
+            error = np.hstack([error, test_error])
+
+    print("{:,} test points".format(len(error)))
+    error_buckets = np.zeros(22)
+    for e in error:
+        if e >= 0:
+            idx = int(np.floor(e + 11))
+        else:
+            idx = int(np.ceil(e + 10))
+        if idx < 0:
+            idx = 0
+        elif idx > 21:
+            idx = 21
+        error_buckets[idx] += 1
+    error_buckets = error_buckets / error.shape[0]
+    correct = error_buckets[10] + error_buckets[11]
+    error_buckets[10] = 0
+    error_buckets[11] = 0
+    plt.bar(range(-11, 11), error_buckets, width=1)
+    plt.title("{} error breakdown. {:.2%} between $\pm$ 1".format(name, correct))
+    savefig(file_name)
+
+
+
 def plot_map(cluster_assignments,
              station_info,
              station_idx,
@@ -300,7 +409,10 @@ def main():
     # Predictions
     plot_predicted_total_start_trips(start_time_matrix)
     plot_predicted_flow_baseline(flow_matrix)
-
+    plot_cluster_predictor_sample_error(start_time_matrix, flow_matrix, cluster_assignments, means)
+    plot_average_predictor_error(start_time_matrix, flow_matrix)
+    plot_seasonal_average_predictor_error(start_time_matrix, flow_matrix)
+    plot_cluster_predictor_error(start_time_matrix, flow_matrix, cluster_assignments, means)
     
 
 if __name__ == '__main__':
