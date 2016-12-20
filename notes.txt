@@ -18,3 +18,19 @@ Some interesting stations:
 3255 - 8 Ave & W 31 St
 477 - W 41 St & 8 Ave
 517 - Pershing Square South
+
+
+
+Figures:
+1. total trips by week
+2. average weekly started trips for select stations
+3. average weekly flow for select stations
+4. Graphical model for GMM
+5. Cluster Means
+6. Station Map with cluster assignments
+7. Posterior Predictive check, orig and generated
+8. (a) Accuracy Performance of Naive Average Predictor
+	 (b) Accuracy Performance of Average with Seasonal Predictor
+	 (c) Accurace Performance of Cluster based Predictor
+9. Seasonal trend fitted
+10. Sample predictions across weeks from 3 seasons

@@ -238,11 +238,17 @@ def month_indices(reduction_interval=1):
     return np.array([ time_idx("201{y}-{m:0>2}-01 00:00:00".format(y=y,m=m)) 
              for y in range(3,7) for m in range(1,13) 
              if (y > 3 or m > 6) and (y < 6 or m < 10)]) / reduction_interval
+def week_indices(start_time_matrix, reduction_interval=1):
+    total_buckets = start_time_matrix.shape[1]
+    week_indices = np.arange(np.floor(total_buckets / INTERVAL_WEEKLY)) * INTERVAL_WEEKLY
+    return week_indices / reduction_interval
 
-def year_labels(reduction_interval=1):
+def year_labels(reduction_interval=1,date_ticks=True):
     # Take the original month tickmarks and divide them by interval to find the appropriate
     # marks for the transformed data
     tickmarks = month_indices(reduction_interval)
+    if date_ticks:
+        tickmarks = [ time_at_idx(i * reduction_interval) for i in tickmarks ]
     ticklabels = ['']*len(tickmarks)
     ticklabels[0] = "2013"
     ticklabels[6] = "2014"
