@@ -19,3 +19,7 @@ After installing dependencies:
   - ``source venv/bin/activate``
   - ``pip3 install -r requirements.txt``
   - ``make``
+
+
+## Report
+See NYC_Bike_Neighborhood_Analysis.pdf for a detailed explanation of the motivations and results for the project.
